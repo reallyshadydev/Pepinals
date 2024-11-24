@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const dogecore = require("./bitcore-lib-pepe");
+const dogecore = require("bitcore-lib-pepe");
 const axios = require("axios");
 const fs = require("fs");
 const dotenv = require("dotenv");
@@ -18,8 +18,7 @@ if (process.env.TESTNET == "true") {
 if (process.env.FEE_PER_KB) {
   Transaction.FEE_PER_KB = parseInt(process.env.FEE_PER_KB);
 } else {
-  //Transaction.FEE_PER_KB = 100000000
-  Transaction.FEE_PER_KB = 10000000;
+  Transaction.FEE_PER_KB = 100000000;
 }
 
 const WALLET_PATH = process.env.WALLET || ".wallet.json";
@@ -44,33 +43,33 @@ async function main() {
   } else if (cmd == "server") {
     await server();
   } else if (cmd == "prc-20") {
-    await pepe20();
+    await doge20();
   } else {
     throw new Error(`unknown command: ${cmd}`);
   }
 }
 
-async function pepe20() {
+async function doge20() {
   let subcmd = process.argv[3];
 
   if (subcmd === "mint") {
-    await pepe20Transfer("mint");
+    await doge20Transfer("mint");
   } else if (subcmd === "transfer") {
-    await pepe20Transfer();
+    await doge20Transfer();
   } else if (subcmd === "deploy") {
-    await pepe20Deploy();
+    await doge20Deploy();
   } else {
     throw new Error(`unknown subcommand: ${subcmd}`);
   }
 }
 
-async function pepe20Deploy() {
+async function doge20Deploy() {
   const argAddress = process.argv[4];
   const argTicker = process.argv[5];
   const argMax = process.argv[6];
   const argLimit = process.argv[7];
 
-  const pepe20Tx = {
+  const doge20Tx = {
     p: "prc-20",
     op: "deploy",
     tick: `${argTicker.toLowerCase()}`,
@@ -78,36 +77,36 @@ async function pepe20Deploy() {
     lim: `${argLimit}`,
   };
 
-  const parsedPepe20Tx = JSON.stringify(pepe20Tx);
+  const parsedDoge20Tx = JSON.stringify(doge20Tx);
 
-  // encode the pepe20Tx as hex string
-  const encodedPepe20Tx = Buffer.from(parsedPepe20Tx).toString("hex");
+  // encode the doge20Tx as hex string
+  const encodedDoge20Tx = Buffer.from(parsedDoge20Tx).toString("hex");
 
   console.log("Deploying prc-20 token...");
-  await mint(argAddress, "text/plain;charset=utf-8", encodedPepe20Tx);
+  await mint(argAddress, "text/plain;charset=utf-8", encodedDoge20Tx);
 }
 
-async function pepe20Transfer() {
+async function doge20Transfer(operation = "transfer") {
   const argAddress = process.argv[4];
   const argTicker = process.argv[5];
   const argAmount = process.argv[6];
   const argRepeat = Number(process.argv[7]) || 1;
 
-  const pepe20Tx = {
+  const doge20Tx = {
     p: "prc-20",
-    op: "transfer",
+    op: operation,
     tick: `${argTicker.toLowerCase()}`,
     amt: `${argAmount}`,
   };
 
-  const parsedPepe20Tx = JSON.stringify(pepe20Tx);
+  const parsedDoge20Tx = JSON.stringify(doge20Tx);
 
-  // encode the pepe20Tx as hex string
-  const encodedPepe20Tx = Buffer.from(parsedPepe20Tx).toString("hex");
+  // encode the doge20Tx as hex string
+  const encodedDoge20Tx = Buffer.from(parsedDoge20Tx).toString("hex");
 
   for (let i = 0; i < argRepeat; i++) {
-    console.log("Minting prc-20 token...", i + 1, "of", argRepeat, "times");
-    await mint(argAddress, "text/plain;charset=utf-8", encodedPepe20Tx);
+    console.log(`Minting prc-20 token... ${i + 1} of ${argRepeat} times`);
+    await mint(argAddress, "text/plain;charset=utf-8", encodedDoge20Tx);
   }
 }
 
@@ -553,61 +552,39 @@ async function extract(txid) {
   let chunks = script.chunks;
 
   let prefix = chunks.shift().buf.toString("utf-8");
-
-  if (prefix !== "ord") {
+  if (prefix != "ord") {
     throw new Error("not a pepinal");
   }
 
   let pieces = chunkToNumber(chunks.shift());
+
   let contentType = chunks.shift().buf.toString("utf-8");
 
-  let dataChunks = [];
+  let data = Buffer.alloc(0);
   let remaining = pieces;
 
-  try {
-    while (remaining && chunks.length) {
-      let n = chunkToNumber(chunks.shift());
+  while (remaining && chunks.length) {
+    let n = chunkToNumber(chunks.shift());
 
-      if (n !== undefined) {
-        let chunkData = chunks.shift().buf;
-        dataChunks.push({ n: n, chunkData: chunkData });
-        remaining -= 1;
-      }
-
-      if (remaining > 0 && chunks.length === 0) {
-        const prevTxId = inputs[1].txid;
-        txid = prevTxId;
-        response = await axios.post(
-          process.env.NODE_RPC_URL,
-          {
-            jsonrpc: "1.0",
-            id: "extract",
-            method: "getrawtransaction",
-            params: [txid, true],
-          },
-          options
-        );
-
-        transaction = response.data.result;
-        inputs = transaction.vin;
-        scriptHex = inputs[0].scriptSig.hex;
-        script = Script.fromHex(scriptHex);
-        chunks = script.chunks;
-      }
+    if (n !== remaining - 1) {
+      txid = transaction.vout[0].spent.hash;
+      response = await axios.post(process.env.NODE_RPC_URL, body, options);
+      transaction = response.data.result;
+      inputs = transaction.vin;
+      scriptHex = inputs[0].scriptSig.hex;
+      script = Script.fromHex(scriptHex);
+      chunks = script.chunks;
+      continue;
     }
 
-    dataChunks.sort((a, b) => b.n - a.n);
-
-    let data = Buffer.concat(dataChunks.map((chunk) => chunk.chunkData));
-
-    return {
-      contentType,
-      data,
-    };
-  } catch (e) {
-    console.error("Error extracting data:", e);
-    throw e;
+    data = Buffer.concat([data, chunks.shift().buf]);
+    remaining -= 1;
   }
+
+  return {
+    contentType,
+    data,
+  };
 }
 
 function server() {
@@ -620,18 +597,14 @@ function server() {
         res.setHeader("content-type", result.contentType);
         res.send(result.data);
       })
-      .catch((e) => {
-        console.error("Error extracting transaction:", req.params.txid);
-        //console.error('Error extracting transaction:', e);
-        res.status(500).send(e.message);
-      });
+      .catch((e) => res.send(e.message));
   });
 
   app.listen(port, () => {
     console.log(`Listening on port ${port}`);
     console.log();
     console.log(`Example:`);
-    console.log(`http://localhost:${port}/tx/8541ade0622e7e02915bf566af4b264fad0d78bc5ea8c5179dc4eb4fffd428b6`);
+    console.log(`http://localhost:${port}/tx/15f3b73df7e5c072becb1d84191843ba080734805addfccb650929719080f62e`);
   });
 }
 
