@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const dogecore = require("bitcore-lib-pepe");
+const dogecore = require("./bitcore-lib-pepe");
 const axios = require("axios");
 const fs = require("fs");
 const dotenv = require("dotenv");
@@ -17,8 +17,9 @@ if (process.env.TESTNET == "true") {
 
 if (process.env.FEE_PER_KB) {
   Transaction.FEE_PER_KB = parseInt(process.env.FEE_PER_KB);
+  console.log(`💰 Fee rate set to: ${Transaction.FEE_PER_KB} satoshis per KB (${Transaction.FEE_PER_KB / 100000000} PEPE per KB)`);
 } else {
-  Transaction.FEE_PER_KB = 100000000;
+  throw new Error("FEE_PER_KB environment variable is required. Please set it in your .env file.");
 }
 
 const WALLET_PATH = process.env.WALLET || ".wallet.json";
@@ -44,6 +45,8 @@ async function main() {
     await server();
   } else if (cmd == "prc-20") {
     await doge20();
+  } else if (cmd == "bulk-mint") {
+    await bulkMint();
   } else {
     throw new Error(`unknown command: ${cmd}`);
   }
@@ -589,7 +592,7 @@ async function extract(txid) {
 
 function server() {
   const app = express();
-  const port = process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT) : 3000;
+  const port = process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT) : 3008;
 
   app.get("/tx/:txid", (req, res) => {
     extract(req.params.txid)
@@ -604,8 +607,113 @@ function server() {
     console.log(`Listening on port ${port}`);
     console.log();
     console.log(`Example:`);
-    console.log(`http://localhost:${port}/tx/15f3b73df7e5c072becb1d84191843ba080734805addfccb650929719080f62e`);
+    console.log(`http://localhost:${port}/tx/15f3b73df7e5c072becb1d84191843ba080734805addfccb650929719080f62ei0`);
   });
+}
+
+async function bulkMint() {
+  const argAddress = process.argv[3];
+  const argTicker = process.argv[4];
+  const argMax = process.argv[5];
+  const argLimit = process.argv[6];
+  const waitMinutes = parseInt(process.argv[7]) || 5;
+
+  // Validate required arguments
+  if (!argAddress) {
+    throw new Error("Address argument is required. Usage: node pepinals.js bulk-mint <address> <ticker> <max> <limit> [waitMinutes]");
+  }
+  if (!argTicker) {
+    throw new Error("Ticker argument is required. Usage: node pepinals.js bulk-mint <address> <ticker> <max> <limit> [waitMinutes]");
+  }
+  if (!argMax) {
+    throw new Error("Max supply argument is required. Usage: node pepinals.js bulk-mint <address> <ticker> <max> <limit> [waitMinutes]");
+  }
+  if (!argLimit) {
+    throw new Error("Limit argument is required. Usage: node pepinals.js bulk-mint <address> <ticker> <max> <limit> [waitMinutes]");
+  }
+
+  console.log("🚀 Starting Bulk PRC-20 Minting");
+  console.log(`Address: ${argAddress}`);
+  console.log(`Ticker: ${argTicker}`);
+  console.log(`Max Supply: ${argMax}`);
+  console.log(`Limit per batch: ${argLimit}`);
+  console.log(`Wait time: ${waitMinutes} minutes`);
+  console.log(`💰 Fee rate: ${Transaction.FEE_PER_KB} satoshis per KB (${Transaction.FEE_PER_KB / 100000000} PEPE per KB)`);
+  console.log(`🔧 Using fee rate from .env file: ${process.env.FEE_PER_KB}`);
+  console.log("==================================================");
+
+  let batchCount = 0;
+
+  const mintBatch = async () => {
+    batchCount++;
+    console.log(`\n🔄 Starting batch #${batchCount}`);
+    console.log(`💰 Current fee rate: ${Transaction.FEE_PER_KB} satoshis per KB (${Transaction.FEE_PER_KB / 100000000} PEPE per KB)`);
+    
+    try {
+      console.log(`Minting ${argLimit} ${argTicker} tokens...`);
+      
+      // Use the existing doge20Transfer function with retry logic
+      let retries = 3;
+      let success = false;
+      let originalArgv = process.argv.slice(); // Move declaration outside the try block
+      
+      while (retries > 0 && !success) {
+        try {
+          // Temporarily modify process.argv to use the existing doge20Transfer function
+          process.argv = ['node', 'pepinals.js', 'prc-20', 'mint', argAddress, argTicker, argMax, argLimit];
+          
+          await doge20Transfer("mint");
+          
+          // Restore original argv
+          process.argv = originalArgv;
+          
+          success = true;
+          console.log(`✅ Batch #${batchCount} completed successfully`);
+        } catch (error) {
+          // Restore original argv in case of error
+          process.argv = originalArgv;
+          
+          if (error.message && error.message.includes('too-long-mempool-chain')) {
+            retries--;
+            if (retries > 0) {
+              console.log(`⏳ Too-long-mempool-chain error, waiting 30 seconds before retry (${retries} attempts left)...`);
+              await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+            } else {
+              console.log(`❌ Batch #${batchCount} failed after 3 retries due to too-long-mempool-chain`);
+              console.log(`💡 Suggestion: Wait for some transactions to confirm before trying again`);
+            }
+          } else {
+            throw error; // Re-throw if it's not a mempool chain error
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`❌ Batch #${batchCount} failed:`, error.message);
+    }
+  };
+
+  // Run first batch immediately
+  await mintBatch();
+
+  // Set up interval for subsequent batches
+  const interval = setInterval(async () => {
+    try {
+      await mintBatch();
+    } catch (error) {
+      console.log("❌ Error in batch:", error.message);
+    }
+  }, waitMinutes * 60 * 1000);
+
+  // Handle graceful shutdown
+  process.on('SIGINT', () => {
+    console.log('\n🛑 Bulk minting stopped by user');
+    console.log(`📊 Total batches completed: ${batchCount}`);
+    clearInterval(interval);
+    process.exit(0);
+  });
+
+  console.log(`\n⏳ Next batch in ${waitMinutes} minutes...`);
+  console.log("Press Ctrl+C to stop");
 }
 
 main().catch((e) => {

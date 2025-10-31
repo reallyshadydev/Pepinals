@@ -1,213 +1,170 @@
 # Pepinals
 
-A minter and protocol for inscriptions on Pepecoin. 
+A minter and protocol for inscriptions on Pepecoin.
 
-## ⚠️⚠️⚠️ Important ⚠️⚠️⚠️
+## Setup
 
-Use this wallet for inscribing only! Avoid storing pepinals in pepecoin core.
+Install dependencies:
 
-Please use a fresh paper wallet to mint to with nothing else in it until proper wallet for pepinals support comes.. 
-
-This wallet is not meant for storing funds or inscriptions.
-
-## Prerequisites
-
-To use this, you'll need to setup a Pepecoin node, clone this repo and install Node.js on your computer.
-
-### Setup Pepecoin node
-
-Install Pepecoin Core from the official Pepecoin github: (https://github.com/pepecoinppc/pepecoin/releases)
-
-### ⚠️⚠️⚠️ Important ⚠️⚠️⚠️
-A configuration file needs to be created before you continue with the sync.
-
--Stop your node
-
--Create a `pepecoin.conf` file in your Pepecoin data folder.
-
--Copy and paste this to the created file. Set your own username/password. Save it!
-
-```
-rpcuser=ape
-rpcpassword=zord
-rpcport=22555
-server=1
-listen=1
-txindex=1
-rpcallowip=127.0.0.1
-```
-
--Start your node again
-
--Wait for your node to sync with the network.
-
-==========
-
-### Install NodeJS
-
-Please head over to (https://nodejs.org/en/download) and follow the installation instructions for your system.
-
-==========
-
-
-### Setup Pepinals
-
-#### Clone Pepinal minter
-On your Terminal, type the following commands:
-```
-cd
-git clone https://github.com/PepeEnthusiast/Pepinals.git
-```
-#### Setup minter
-
-```
-cd Pepinals
+```bash
 npm install
 cd bitcore-lib-pepe
 npm install
 cd ..
-``` 
+```
 
-After all dependencies are solved, you can configure the environment:
-
-#### Configure environment
-
-Create a `.env` file with your node information. Set the same username/password used in `pepecoin.conf`.
+Create a `.env` file with your node information:
 
 ```
-NODE_RPC_URL=http://127.0.0.1:22555
-NODE_RPC_USER=ape
-NODE_RPC_PASS=zord
+NODE_RPC_URL=http://<ip>:<port>
+NODE_RPC_USER=<username>
+NODE_RPC_PASS=<password>
 TESTNET=false
+FEE_PER_KB=18000000
 ```
 
-==========
+**Note**: The `FEE_PER_KB` is required and sets the miner fee rate in satoshis per KB. The default example is 18000000 satoshis (0.18 PEPE per KB). Adjust based on network conditions.
 
-#### ⚠️⚠️⚠️ Important ⚠️⚠️⚠️
-Before proceeding, please make sure your node is fully synced.
-Have fun!
-
-### Managing wallet balance
+## Funding
 
 Generate a new `.wallet.json` file:
 
 ```
-node . wallet new
-```
-
-Retrieve your private key from `.wallet.json` and import it in Pepecoin Core, this can be done from the GUI or the following command
-
-```
-pepecoin-cli importprivkey <your_private_key> <optional_label> false
+node pepinals.js wallet new
 ```
 
 Then send PEPE to the address displayed. Once sent, sync your wallet:
 
 ```
-node . wallet sync
+node pepinals.js wallet sync
 ```
 
 If you are minting a lot, you can split up your UTXOs:
 
 ```
-node . wallet split <count>
+node pepinals.js wallet split <count>
 ```
 
 When you are done minting, send the funds back:
 
 ```
-node . wallet send <address> <optional amount>
+node pepinals.js wallet send <address> <optional amount>
 ```
 
-==========
+Check your wallet balance:
 
+```
+node pepinals.js wallet balance
+```
 
-### Minting Pepinals
+## Minting
 
-**Note**: Please use a fresh wallet to mint to with nothing else in it until proper wallet for pepinals support comes. 
-
-**Do not mint to Pepecoin Core**
-
-#### Inscribe a file
 From file:
 
 ```
-node . mint <address> <path>
+node pepinals.js mint <address> <path>
 ```
 
 From data:
 
 ```
-node . mint <address> <content type> <hex data>
+node pepinals.js mint <address> <content type> <hex data>
 ```
 
 Examples:
 
 ```
-node . mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n pepe.jpeg
+node pepinals.js mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n pepe.jpeg
 ```
 
 ```
-node . mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n "text/plain;charset=utf-8" 52696262697421 
+node pepinals.js mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n "text/plain;charset=utf8" 52696262697421
 ```
 
-#### Deploy PRC-20
+**Note**: Please use a fresh wallet to mint to with nothing else in it until proper wallet for pepinals support comes. You can get a paper wallet here.
+
+## PRC-20 Token Operations
+
+### Deploy a PRC-20 token
 
 ```
-node . prc-20 deploy <address> <ticker> <max token supply> <max allowed mint limit>
+node pepinals.js prc-20 deploy <address> <ticker> <max supply> <limit per mint>
 ```
 
-Examples: 
+Example:
 
 ```
-node . prc-20 deploy PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n frog 1000 100
+node pepinals.js prc-20 deploy PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n PEPE 21000000 1000
 ```
 
-#### Mint PRC-20
+### Mint PRC-20 tokens
 
 ```
-node . prc-20 mint <address> <ticker> <amount>
+node pepinals.js prc-20 mint <address> <ticker> <amount> [repeat count]
 ```
 
-Examples: 
+Example:
 
 ```
-node . prc-20 mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n frog 100
+node pepinals.js prc-20 mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n PEPE 1000 1
 ```
 
-### Viewing Pepinals
+### Transfer PRC-20 tokens
 
-**Note**: There is currently as bug preventing to preview some larger pepinals files. Wait for a fix or a pepinals indexer. 
+```
+node pepinals.js prc-20 transfer <address> <ticker> <amount> [repeat count]
+```
 
-Viewing small inscriptions seems to work. Investigating...
+Example:
+
+```
+node pepinals.js prc-20 transfer PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n PEPE 500 1
+```
+
+## Bulk Minting
+
+For automated bulk minting of PRC-20 tokens:
+
+```
+node pepinals.js bulk-mint <address> <ticker> <max supply> <limit per batch> [wait minutes]
+```
+
+Example:
+
+```
+node pepinals.js bulk-mint PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n PEPE 21000000 1000 5
+```
+
+This will:
+- Mint `limit per batch` tokens immediately
+- Wait `wait minutes` (default 5) between batches
+- Continue until stopped (Ctrl+C)
+- Automatically handle retries for mempool chain errors
+
+## Viewing
 
 Start the server:
 
 ```
-node . server
+node pepinals.js server
 ```
 
-And open your browser to:
+The server runs on port 3008 by default (configurable via `SERVER_PORT` environment variable). Open your browser to:
 
 ```
-http://localhost:3000/tx/4650300f65470c359c070ae6b88ab7945adad68458c33285968ce0bfa502e52c
+http://localhost:3008/tx/<transaction_id>
 ```
 
-==========
+## Protocol
 
-
-### Additional Info
-
-#### Protocol
-
-The pepinals protocol allows any size data to be inscribed onto subwoofers.
+The pepinals protocol allows any size data to be inscribed onto Pepecoin.
 
 An inscription is defined as a series of push datas:
 
 ```
 "ord"
 OP_1
-"text/plain;charset=utf-8"
+"text/plain; charset=utf8"
 OP_0
 "Ribbit!"
 ```
@@ -217,7 +174,7 @@ For pepinals, we introduce a couple extensions. First, content may spread across
 ```
 "ord"
 OP_2
-"text/plain;charset=utf-8"
+"text/plain; charset=utf8"
 OP_1
 "Ribbit and "
 OP_0
@@ -237,7 +194,7 @@ Transaction 1:
 ```
 "ord"
 OP_2
-"text/plain;charset=utf-8"
+"text/plain; charset=utf8"
 OP_1
 "Ribbit and "
 ```
@@ -253,17 +210,16 @@ With the restriction that each inscription part after the first must start with 
 
 This allows indexers to know how much data remains.
 
+## FAQ
 
-### Troubleshooting
-
-#### I'm getting ECONNREFUSED errors when minting
+### I'm getting ECONNREFUSED errors when minting
 
 There's a problem with the node connection. Your `pepecoin.conf` file should look something like:
 
 ```
 rpcuser=ape
 rpcpassword=zord
-rpcport=22555
+rpcport=33875
 server=1
 listen=1
 txindex=1
@@ -272,17 +228,24 @@ rpcallowip=127.0.0.1
 
 Make sure `port` is not set to the same number as `rpcport`. Also make sure `rpcauth` is not set.
 
-Your `.env file` should look like:
+Your `.env` file should look like:
 
 ```
-NODE_RPC_URL=http://127.0.0.1:22555
+NODE_RPC_URL=http://127.0.0.1:33875
 NODE_RPC_USER=ape
 NODE_RPC_PASS=zord
 TESTNET=false
+FEE_PER_KB=18000000
 ```
 
-#### Other issues
+### I'm getting "insufficient priority" errors when minting
 
-Try restarting your Pepecoin node.
+The miner fee is too low. You can increase it by putting `FEE_PER_KB=30000000` (or higher) in your `.env` file or just wait it out. The default example is 18000000 satoshis (0.18 PEPE per KB) but spikes up when demand is high.
 
-If still stuck, ask ChatGPT or search online for other solutions.
+### I'm getting "too-long-mempool-chain" errors
+
+This happens when you're trying to broadcast too many dependent transactions at once. The bulk-mint command handles this automatically with retries. For manual minting, wait for some transactions to confirm before minting more.
+
+## License
+
+MIT
