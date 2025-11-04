@@ -1,25 +1,45 @@
 #!/usr/bin/env node
 
+const dotenv = require("dotenv");
+dotenv.config();
+
+// CRITICAL: Set FEE_PER_KB BEFORE importing dogecore to prevent default fee usage
+if (!process.env.FEE_PER_KB) {
+  console.error("❌ CRITICAL ERROR: FEE_PER_KB environment variable is required!");
+  console.error("   Please add FEE_PER_KB to your .env file");
+  process.exit(1);
+}
+
 const dogecore = require("./bitcore-lib-pepe");
 const axios = require("axios");
 const fs = require("fs");
-const dotenv = require("dotenv");
 const mime = require("mime-types");
 const express = require("express");
 const { PrivateKey, Address, Transaction, Script, Opcode } = dogecore;
 const { Hash, Signature } = dogecore.crypto;
 
-dotenv.config();
+// IMMEDIATELY enforce FEE_PER_KB before ANY transaction can be created
+const REQUIRED_FEE_PER_KB = parseInt(process.env.FEE_PER_KB);
+if (isNaN(REQUIRED_FEE_PER_KB) || REQUIRED_FEE_PER_KB <= 0) {
+  console.error(`❌ CRITICAL ERROR: Invalid FEE_PER_KB value: ${process.env.FEE_PER_KB}`);
+  console.error("   FEE_PER_KB must be a positive number (satoshis per KB)");
+  process.exit(1);
+}
+
+// Force set the fee - this MUST happen before any Transaction instances
+Transaction.FEE_PER_KB = REQUIRED_FEE_PER_KB;
+
+// Verify it was set correctly
+if (Transaction.FEE_PER_KB !== REQUIRED_FEE_PER_KB) {
+  console.error(`❌ CRITICAL ERROR: Failed to set FEE_PER_KB correctly!`);
+  console.error(`   Expected: ${REQUIRED_FEE_PER_KB}, Got: ${Transaction.FEE_PER_KB}`);
+  process.exit(1);
+}
+
+console.log(`💰 Fee rate ENFORCED: ${Transaction.FEE_PER_KB} satoshis per KB (${Transaction.FEE_PER_KB / 100000000} PEPE per KB)`);
 
 if (process.env.TESTNET == "true") {
   dogecore.Networks.defaultNetwork = dogecore.Networks.testnet;
-}
-
-if (process.env.FEE_PER_KB) {
-  Transaction.FEE_PER_KB = parseInt(process.env.FEE_PER_KB);
-  console.log(`💰 Fee rate set to: ${Transaction.FEE_PER_KB} satoshis per KB (${Transaction.FEE_PER_KB / 100000000} PEPE per KB)`);
-} else {
-  throw new Error("FEE_PER_KB environment variable is required. Please set it in your .env file.");
 }
 
 const WALLET_PATH = process.env.WALLET || ".wallet.json";
@@ -47,6 +67,8 @@ async function main() {
     await doge20();
   } else if (cmd == "bulk-mint") {
     await bulkMint();
+  } else if (cmd == "pepemap") {
+    await pepemap();
   } else {
     throw new Error(`unknown command: ${cmd}`);
   }
@@ -714,6 +736,82 @@ async function bulkMint() {
 
   console.log(`\n⏳ Next batch in ${waitMinutes} minutes...`);
   console.log("Press Ctrl+C to stop");
+}
+
+async function pepemap() {
+  let subcmd = process.argv[3];
+
+  if (subcmd === "mint") {
+    await pepemapMint();
+  } else {
+    throw new Error(`unknown subcommand: ${subcmd}. Use: node pepinals.js pepemap mint <address> [map_number]`);
+  }
+}
+
+async function pepemapMint() {
+  const argAddress = process.argv[4];
+  const argPepemap = process.argv[5]; // Optional: map number in format "296773.pepemap"
+
+  if (!argAddress) {
+    throw new Error("Usage: node pepinals.js pepemap mint <address> [map_number.pepemap]\nExample: node pepinals.js pepemap mint PpTmGCCuCnd3gURrRPeTmGEj66X3JDHLGt 296773.pepemap");
+  }
+
+  let blockHeight;
+  
+  // If map number is provided, parse it
+  if (argPepemap) {
+    // Must be in format "number.pepemap"
+    if (!argPepemap.endsWith('.pepemap')) {
+      throw new Error(`Invalid format: ${argPepemap}. Must be in format "296773.pepemap"`);
+    }
+    
+    // Remove .pepemap suffix
+    const mapNumberStr = argPepemap.replace(/\.pepemap$/i, '');
+    blockHeight = parseInt(mapNumberStr);
+    
+    if (isNaN(blockHeight) || blockHeight <= 0) {
+      throw new Error(`Invalid map number: ${argPepemap}. Must be a positive integer with .pepemap suffix (e.g., "296773.pepemap").`);
+    }
+    console.log(`Minting specified pepemap: ${blockHeight}.pepemap`);
+  } else {
+    // Get current block height from RPC if no map number provided
+    try {
+      const response = await axios.post(
+        process.env.NODE_RPC_URL,
+        {
+          jsonrpc: "1.0",
+          id: "getblock",
+          method: "getblockcount",
+          params: [],
+        },
+        {
+          auth: {
+            username: process.env.NODE_RPC_USER,
+            password: process.env.NODE_RPC_PASS,
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data && response.data.result !== undefined) {
+        blockHeight = response.data.result;
+        console.log(`No map number specified, using current block height: ${blockHeight}`);
+      } else {
+        throw new Error("Failed to get block height from RPC");
+      }
+    } catch (error) {
+      throw new Error(`Error getting block height: ${error.message}`);
+    }
+  }
+
+  // Create pepemap text: {block_height}.pepemap
+  const pepemapText = `${blockHeight}.pepemap`;
+  
+  // Encode as hex string
+  const encodedPepemapTx = Buffer.from(pepemapText).toString("hex");
+
+  console.log(`Minting pepemap: ${pepemapText}`);
+  await mint(argAddress, "text/plain;charset=utf-8", encodedPepemapTx);
 }
 
 main().catch((e) => {
