@@ -1,6 +1,6 @@
 # Pepinals
 
-A minter and protocol for inscriptions on Pepecoin.
+A minter and protocol for inscriptions on Pepecoin. 
 
 ## Setup
 
@@ -11,7 +11,7 @@ npm install
 cd bitcore-lib-pepe
 npm install
 cd ..
-```
+``` 
 
 Create a `.env` file with your node information:
 
@@ -120,6 +120,85 @@ Example:
 ```
 node pepinals.js prc-20 transfer PpB1ocks3ozcti7m5a3i2wViSuFAchLm3n PEPE 500 1
 ```
+
+## Pepemap Minting
+
+Mint pepemaps with the format `{block_height}.pepemap`. You can mint using the current block height or specify a specific map number.
+
+### Mint Current Block Height
+
+Mints a pepemap using the current block height from your node:
+
+```
+node pepinals.js pepemap mint <address>
+```
+
+Example:
+
+```
+node pepinals.js pepemap mint PpTmGCCuCnd3gURrRPeTmGEj66X3JDHLGt
+```
+
+This will mint a pepemap with the format `773210.pepemap` (where 773210 is the current block height).
+
+### Mint Specific Map Number
+
+Mint a specific pepemap by providing the map number in the format `{number}.pepemap`:
+
+```
+node pepinals.js pepemap mint <address> <map_number.pepemap>
+```
+
+Examples:
+
+```
+# Mint pepemap 296773
+node pepinals.js pepemap mint PpTmGCCuCnd3gURrRPeTmGEj66X3JDHLGt 296773.pepemap
+
+# Mint pepemap 300100
+node pepinals.js pepemap mint PpTmGCCuCnd3gURrRPeTmGEj66X3JDHLGt 300100.pepemap
+```
+
+**Important Notes:**
+- The map number must include the `.pepemap` suffix (e.g., `296773.pepemap`)
+- The map number must be a positive integer
+- If no map number is provided, it will use the current block height
+- Make sure the map number you want to mint is available (not already minted)
+
+### Block-based Pepemap Bot
+
+Monitor block numbers and automatically mint pepemaps when target block is reached:
+
+1. Configure environment variables in `.env`:
+   ```
+   PEPEMAP_ADDRESS=PpTmGCCuCnd3gURrRPeTmGEj66X3JDHLGt
+   TARGET_BLOCK_OFFSET=0
+   CHECK_INTERVAL=3000
+   COORDINATES_FILE=pepemap_coordinates.txt
+   ```
+
+2. Create a `pepemap_coordinates.txt` file - each line represents one pepemap to mint:
+   ```
+   # This file determines how many pepemaps to mint
+   # Each non-comment line = 1 pepemap
+   # Example: 5 lines = 5 pepemaps will be minted
+   ```
+
+3. Run the bot:
+   ```
+   node pepemap_bot.js
+   ```
+
+Or specify count on command line:
+```
+node pepemap_bot.js --count 5
+```
+
+The bot will:
+- Monitor current block number via RPC
+- Mint when target block is reached (current block + offset)
+- Each pepemap uses format: `{block_height}.pepemap`
+- Save results to `pepemap_minted.json`
 
 ## Bulk Minting
 
